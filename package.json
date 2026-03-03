@@ -1,0 +1,48 @@
+{
+  "name": "rspress-plugin-auto-nav",
+  "version": "1.0.0",
+  "description": "Rspress plugin to automatically generate navigation metadata",
+  "type": "module",
+  "keywords": [
+    "rspress",
+    "plugin",
+    "auto-nav",
+    "navigation",
+    "meta"
+  ],
+  "homepage": "https://github.com/smileluck/rspress-plugins-auto-nav/blob/main#readme",
+  "bugs": {
+    "url": "https://github.com/smileluck/rspress-plugins-auto-nav/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smileluck/rspress-plugins-auto-nav.git"
+  },
+  "license": "MIT",
+  "author": "SmileLuck <12386904+smileluck@users.noreply.github.com> (https://github.com/smileluck)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --declarationMap false",
+    "dev": "tsc -w",
+    "docs:build": "rspress build",
+    "docs:dev": "rspress dev"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.5",
+    "typescript": "^5.4.4"
+  },
+  "peerDependencies": {
+    "@rspress/core": "^2.0.0-rc.4 || ^2.0.0"
+  },
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "rspress-plugin-devkit": "^1.0.0"
+  }
+}
