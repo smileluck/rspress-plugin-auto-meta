@@ -48,6 +48,13 @@ export interface AutoMetaPluginOptions {
   applyInDev?: boolean
 
   /**
+   * 是否在 config.root 指定的根目录生成 _meta.json 文件
+   * 设为 true 时，根目录不会生成 _meta.json，但子目录正常生成
+   * 默认为 true
+   */
+  excludeRoot?: boolean
+
+  /**
    * index 文件配置
    * - 配置为 boolean 时，true 等同于 { first: true, name: '首页' }
    * - 配置为对象时，可同时设置 name、first 和 rewrite 属性
@@ -113,6 +120,11 @@ export interface MetaItem {
   type?: 'file' | 'dir'
   name: string
   label?: string
+  /**
+   * 手动指定的排序顺序
+   * 数值越小越靠前，未设置则使用默认排序规则
+   */
+  order?: number
   collapsible?: boolean
   collapsed?: boolean
 }
@@ -156,6 +168,7 @@ export interface UpdateLog {
 const defaultOptions: Required<Omit<AutoMetaPluginOptions, 'index'>> & { index: Required<IndexOptions> } = {
   applyInProd: true,
   applyInDev: true,
+  excludeRoot: true,
   index: {
     name: '首页',
     first: true,
@@ -207,7 +220,7 @@ export function AutoMetaPlugin(
       if (!isProd && !opts.applyInDev) return
 
       const docsDir = path.resolve(config.root || 'docs')
-      walk(docsDir, opts)
+      walk(docsDir, docsDir, opts)
     }
   }
 }
@@ -523,7 +536,8 @@ function generateMeta(dir: string, opts: Required<AutoMetaPluginOptions>) {
     result.push({
       type: 'file',
       name,
-      label: isIndexFile ? label : (oldItem?.label ?? label)
+      label: isIndexFile ? label : (oldItem?.label ?? label),
+      order: oldItem?.order
     })
   }
 
@@ -545,10 +559,27 @@ function generateMeta(dir: string, opts: Required<AutoMetaPluginOptions>) {
         type: 'dir',
         name: subdir,
         label: oldItem?.label ?? subdir,
+        order: oldItem?.order,
         collapsible: oldItem?.collapsible ?? true,
         collapsed: oldItem?.collapsed ?? false
       })
     }
+  }
+
+  /* ---------- 手动排序支持 ----------
+   * 如果用户手动设置了 order，则优先按 order 排序
+   * 有 order 的项排在前面，未设置的保持默认排序
+   */
+  const hasManualOrder = result.some(item => item.order !== undefined)
+  if (hasManualOrder) {
+    result.sort((a, b) => {
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order
+      }
+      if (a.order !== undefined) return -1
+      if (b.order !== undefined) return 1
+      return opts.sort(a.name, b.name)
+    })
   }
 
   /* ---------- 避免无变化写入 ---------- */
@@ -596,19 +627,26 @@ function generateMeta(dir: string, opts: Required<AutoMetaPluginOptions>) {
 
 /**
  * 递归遍历目录并生成 _meta.json 文件
- * @param dir - 目录路径
+ * @param dir - 当前目录路径
+ * @param rootDir - 根目录路径
  * @param opts - 插件配置选项
  */
-function walk(dir: string, opts: Required<AutoMetaPluginOptions>) {
+function walk(dir: string, rootDir: string, opts: Required<AutoMetaPluginOptions>) {
   if (!fs.existsSync(dir)) return
 
-  generateMeta(dir, opts)
+  // 如果是根目录且配置了 excludeRoot，则跳过生成
+  const isRoot = dir === rootDir
+  if (isRoot && opts.excludeRoot) {
+    // 继续遍历子目录，但不生成根目录的 _meta.json
+  } else {
+    generateMeta(dir, opts)
+  }
 
   const entries = fs.readdirSync(dir, { withFileTypes: true })
 
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      walk(path.join(dir, entry.name), opts)
+      walk(path.join(dir, entry.name), rootDir, opts)
     }
   }
 }

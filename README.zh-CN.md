@@ -21,6 +21,7 @@
 - **保留手动配置**：保留现有的 `collapsible` 和 `collapsed` 设置
 - **灵活过滤**：支持自定义过滤和排序函数
 - **环境控制**：分别控制开发和生产模式
+- **根目录排除**：支持排除根目录的元数据生成
 
 ## 安装
 
@@ -73,6 +74,19 @@ AutoMetaPlugin({
 ```ts
 AutoMetaPlugin({
   applyInDev: true, // 在开发环境启用
+})
+```
+
+### excludeRoot
+
+是否排除 config.root 指定的根目录，不生成 `_meta.json` 文件。
+
+- 类型：`boolean`
+- 默认值：`true`
+
+```ts
+AutoMetaPlugin({
+  excludeRoot: true, // 排除根目录的元数据生成
 })
 ```
 
@@ -331,6 +345,9 @@ export default defineConfig({
       applyInProd: true,
       applyInDev: true,
 
+      // 根目录控制
+      excludeRoot: true,
+
       // 索引文件配置
       index: {
         name: '首页',
@@ -371,6 +388,7 @@ export interface IndexOptions {
 export interface AutoMetaPluginOptions {
   applyInProd?: boolean
   applyInDev?: boolean
+  excludeRoot?: boolean
   index?: IndexOptions | boolean
   generateDirMeta?: boolean
   useFrontmatter?: boolean
@@ -387,6 +405,7 @@ export interface MetaItem {
   type?: 'file' | 'dir'
   name: string
   label?: string
+  order?: number
   collapsible?: boolean
   collapsed?: boolean
 }
@@ -453,6 +472,55 @@ AutoMetaPlugin({
 4. **元数据生成**：使用导航项创建或更新 `_meta.json` 文件
 5. **配置保留**：当启用 `preserveCollapsible` 时，保留现有配置（如 `collapsible`）
 6. **差异跟踪**：启用时，详细日志显示所做的更改
+
+## 贡献指南
+
+欢迎贡献！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建功能分支（`git checkout -b feature/amazing-feature`）
+3. 提交您的更改（`git commit -m 'feat: 添加新功能'`）
+4. 推送分支（`git push origin feature/amazing-feature`）
+5. 提交 Pull Request
+
+请确保适当更新测试。
+
+## 故障排除
+
+### 导航没有显示
+
+如果导航没有显示，请确保：
+- 插件已正确注册在 `rspress.config.ts` 中
+- 您的 Markdown 文件在正确的目录结构中
+- `_meta.json` 文件正在被生成（使用 `enableDiffLog: true` 检查）
+
+### 索引文件没有显示
+
+检查您的 `index` 配置：
+- 设置 `index: true` 以启用索引文件处理
+- 验证 `name` 属性设置正确
+- 如果希望索引文件显示在最前面，请确保 `first: true`
+
+### 文件没有被包含
+
+验证您的过滤模式：
+- 检查 `include` 模式是否匹配您的文件扩展名
+- 确保文件没有被 `exclude` 或 `excludeDir` 排除
+- 确保 `filter` 函数对您的文件返回 `true`
+
+### 更改没有生效
+
+如果更改没有生效：
+- 清除 `.rspress` 缓存目录
+- 重新运行构建
+- 检查 `enableDiffLog` 查看正在生成的内容
+
+### TypeScript 错误
+
+如果您遇到 TypeScript 错误：
+- 确保已安装 `@rspress/core` 作为 peer dependency
+- 更新 TypeScript 到最新的稳定版本
+- 检查您的 `tsconfig.json` 是否包含插件类型
 
 ## 许可证
 

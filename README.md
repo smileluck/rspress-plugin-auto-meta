@@ -21,6 +21,7 @@ This plugin automatically traverses your documentation directory and generates `
 - **Preserve manual config**: Maintains existing `collapsible` and `collapsed` settings
 - **Flexible filtering**: Support for custom filter and sort functions
 - **Environment control**: Separate control for development and production modes
+- **Root directory exclusion**: Option to exclude root directory from meta generation
 
 ## Installation
 
@@ -73,6 +74,19 @@ Whether to apply the plugin in development environment.
 ```ts
 AutoMetaPlugin({
   applyInDev: true, // Enable in development
+})
+```
+
+### excludeRoot
+
+Whether to exclude the root directory (specified in config.root) from generating `_meta.json` file.
+
+- Type: `boolean`
+- Default: `true`
+
+```ts
+AutoMetaPlugin({
+  excludeRoot: true, // Exclude root directory from meta generation
 })
 ```
 
@@ -331,6 +345,9 @@ export default defineConfig({
       applyInProd: true,
       applyInDev: true,
 
+      // Root directory control
+      excludeRoot: true,
+
       // Index file configuration
       index: {
         name: 'Home',
@@ -371,6 +388,7 @@ export interface IndexOptions {
 export interface AutoMetaPluginOptions {
   applyInProd?: boolean
   applyInDev?: boolean
+  excludeRoot?: boolean
   index?: IndexOptions | boolean
   generateDirMeta?: boolean
   useFrontmatter?: boolean
@@ -387,6 +405,7 @@ export interface MetaItem {
   type?: 'file' | 'dir'
   name: string
   label?: string
+  order?: number
   collapsible?: boolean
   collapsed?: boolean
 }
@@ -453,6 +472,55 @@ AutoMetaPlugin({
 4. **Meta Generation**: It creates or updates `_meta.json` files with navigation items
 5. **Preservation**: Existing configurations (like `collapsible`) are preserved when `preserveCollapsible` is enabled
 6. **Diff Tracking**: When enabled, detailed logs show what changes were made
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+Please make sure to update tests as appropriate.
+
+## Troubleshooting
+
+### Navigation not appearing
+
+If your navigation is not appearing, ensure that:
+- The plugin is properly registered in your `rspress.config.ts`
+- Your markdown files are in the correct directory structure
+- The `_meta.json` files are being generated (check with `enableDiffLog: true`)
+
+### Index file not showing
+
+Check your `index` configuration:
+- Set `index: true` to enable index file handling
+- Verify the `name` property is set correctly
+- Ensure `first: true` if you want it to appear first
+
+### Files not being included
+
+Verify your filter patterns:
+- Check `include` pattern matches your file extensions
+- Ensure files aren't being excluded by `exclude` or `excludeDir`
+- Make sure the `filter` function returns `true` for your files
+
+### Changes not taking effect
+
+If changes are not reflecting:
+- Clear the `.rspress` cache directory
+- Run the build again
+- Check `enableDiffLog` to see what's being generated
+
+### TypeScript errors
+
+If you encounter TypeScript errors:
+- Ensure you have `@rspress/core` installed as a peer dependency
+- Update your TypeScript version to the latest stable
+- Check that your `tsconfig.json` includes the plugin types
 
 ## License
 
