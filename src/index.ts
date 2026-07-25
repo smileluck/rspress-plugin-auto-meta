@@ -21,13 +21,6 @@ export interface IndexOptions {
    */
   first?: boolean
 
-  /**
-   * 是否覆盖用户在 _meta.json 中手动配置的 label
-   * - 设置为 true 时，会用 name 配置的值覆盖用户自定义的 label
-   * - 设置为 false 时，保留用户自定义的 label
-   * - 未配置时，默认为 true
-   */
-  rewrite?: boolean
 }
 
 /**
@@ -165,6 +158,145 @@ export interface UpdateLog {
   }>
 }
 
+/**
+ * 从文本中提取多级数字信息，用于自然排序
+ * 支持以下格式的数字提取：
+ * - 中文数字前缀："第1章", "第10节", "第2部分"
+ * - 多级阿拉伯数字前缀："1.1", "1.2", "2.1.3", "1.10"
+ * - 单级数字前缀："1. 概述", "2开头", "1、概述"
+ * - 纯数字："10", "2"
+ * - 英文数字前缀："Chapter 1", "Part 2"
+ *
+ * @param text - 待提取数字的文本
+ * @returns 包含多级数字数组和剩余文本的对象，若无数字则返回 null
+ */
+function extractNumberSegments(text: string): { nums: number[]; rest: string } | null {
+  // 去除首尾空白
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  // 模式1: "第N章/节/部分/篇/期/课/回/卷" 格式（中文数字前缀）
+  const cnPrefixMatch = trimmed.match(/^第\s*(\d+)\s*[章节部分篇期课回卷]/)
+  if (cnPrefixMatch) {
+    return {
+      nums: [parseInt(cnPrefixMatch[1], 10)],
+      rest: trimmed.slice(cnPrefixMatch[0].length)
+    }
+  }
+
+  // 模式2: 英文数字前缀，如 "Chapter 1", "Part 2", "Section 3", "Lesson 4"
+  const enPrefixMatch = trimmed.match(/^(?:chapter|part|section|lesson|unit|module|lecture|episode)\s+(\d+)/i)
+  if (enPrefixMatch) {
+    return {
+      nums: [parseInt(enPrefixMatch[1], 10)],
+      rest: trimmed.slice(enPrefixMatch[0].length)
+    }
+  }
+
+  // 模式3: 多级数字前缀，如 "1.1", "1.2.3", "1.10", "2-1-3"
+  // 提取以点号或连字符分隔的连续数字段
+  const multiNumMatch = trimmed.match(/^(\d+(?:[.\-:]\d+)+)(?:\s|$|[^\d.\-:])/)
+  if (multiNumMatch) {
+    const numStr = multiNumMatch[1]
+    const nums = numStr.split(/[.\-:]/).map(n => parseInt(n, 10))
+    // multiNumMatch[0] 包含了末尾的一个非数字字符，需要保留
+    const restStart = getNumEndOffset(multiNumMatch)
+    return {
+      nums,
+      rest: trimmed.slice(restStart)
+    }
+  }
+
+  // 模式4: 单级数字+分隔符，如 "1.", "1 开头", "1-xxx", "1、概述"
+  const leadingNumMatch = trimmed.match(/^(\d+)(?:[.\s、\-_:，,]\s*|\s+)/)
+  if (leadingNumMatch) {
+    return {
+      nums: [parseInt(leadingNumMatch[1], 10)],
+      rest: trimmed.slice(leadingNumMatch[0].length)
+    }
+  }
+
+  // 模式5: 纯数字开头（紧跟非数字字符或字符串结尾），如 "10", "2a"
+  const pureNumMatch = trimmed.match(/^(\d+)(?:$|(?=[^\d]))/)
+  if (pureNumMatch) {
+    return {
+      nums: [parseInt(pureNumMatch[1], 10)],
+      rest: trimmed.slice(pureNumMatch[0].length)
+    }
+  }
+
+  return null
+}
+
+/**
+ * 计算多级数字匹配在原字符串中的数字部分结束偏移量
+ * 用于定位数字前缀之后、正文内容之前的分界点
+ * 仅跳过 match[1]（纯数字段）的长度，保留后续文本
+ *
+ * @param match - 正则匹配结果（match[1] 为数字段）
+ * @returns 数字前缀的结束偏移量，若无法确定则回退到 match[0] 长度
+ */
+function getNumEndOffset(match: RegExpMatchArray): number {
+  const index = match.index ?? 0
+  // match[1] 是捕获组，即纯数字部分（如 "1.2.3"），其偏移量 = index + match[0].indexOf(match[1])
+  const numStr = match[1]
+  const numOffsetInMatch = match[0].indexOf(numStr)
+  return index + numOffsetInMatch + numStr.length
+}
+
+/**
+ * 多级数字数组比较
+ * 从左到右逐级比较数字，支持不同长度的数字层级
+ * 例如 [1, 2] < [1, 10] < [2, 1]
+ *
+ * @param a - 第一个数字数组
+ * @param b - 第二个数字数组
+ * @returns 比较结果
+ */
+function compareNumberArrays(a: number[], b: number[]): number {
+  const maxLen = Math.max(a.length, b.length)
+  for (let i = 0; i < maxLen; i++) {
+    const numA = i < a.length ? a[i] : -1
+    const numB = i < b.length ? b[i] : -1
+    if (numA !== numB) return numA - numB
+  }
+  return 0
+}
+
+/**
+ * 自然排序比较函数
+ * 支持按数字值递增排序，解决字典序导致的数字排序问题
+ * 排序规则：
+ * 1. 不包含数字前缀的条目排在前面
+ * 2. 包含数字前缀的条目按多级数字值从小到大排序
+ * 3. 多级数字相同时，按剩余文本字典序排序
+ * 4. 均无数字前缀时，按字典序排序
+ *
+ * @param a - 第一个比较字符串
+ * @param b - 第二个比较字符串
+ * @returns 排序比较值
+ */
+function naturalSort(a: string, b: string): number {
+  const segA = extractNumberSegments(a)
+  const segB = extractNumberSegments(b)
+
+  // 都没有数字前缀，按字典序排序（排在前面）
+  if (!segA && !segB) {
+    return a.localeCompare(b, 'zh-CN')
+  }
+
+  // 没有数字前缀的排在前面
+  if (!segA) return -1
+  if (!segB) return 1
+
+  // 都有数字前缀，逐级比较数字
+  const numCmp = compareNumberArrays(segA.nums, segB.nums)
+  if (numCmp !== 0) return numCmp
+
+  // 数字值完全相同，按剩余文本字典序排序
+  return segA.rest.localeCompare(segB.rest, 'zh-CN')
+}
+
 const defaultOptions: Required<Omit<AutoMetaPluginOptions, 'index'>> & { index: Required<IndexOptions> } = {
   applyInProd: true,
   applyInDev: true,
@@ -172,7 +304,6 @@ const defaultOptions: Required<Omit<AutoMetaPluginOptions, 'index'>> & { index: 
   index: {
     name: '首页',
     first: true,
-    rewrite: true
   },
   generateDirMeta: true,
   useFrontmatter: true,
@@ -180,7 +311,7 @@ const defaultOptions: Required<Omit<AutoMetaPluginOptions, 'index'>> & { index: 
   exclude: [],
   excludeDir: [],
   filter: () => true,
-  sort: (a, b) => a.localeCompare(b),
+  sort: naturalSort,
   enableDiffLog: false,
   preserveCollapsible: true
 }
@@ -201,13 +332,11 @@ export function AutoMetaPlugin(
       opts.index = {
         name: '首页',
         first: options.index,
-        rewrite: true
       }
     } else {
       opts.index = {
         name: options.index.name !== undefined ? options.index.name : '首页',
         first: options.index.first !== undefined ? options.index.first : true,
-        rewrite: options.index.rewrite !== undefined ? options.index.rewrite : true
       }
     }
   }
@@ -520,9 +649,12 @@ function generateMeta(dir: string, opts: Required<AutoMetaPluginOptions>) {
     // 处理 index 文件的 label 配置
     if (isIndexFile && hasOptsIndex) {
       const optsIndex = opts.index as IndexOptions
-      const shouldRewrite = optsIndex.rewrite !== false
 
-      if (shouldRewrite || !oldItem?.label) {
+      if (oldItem?.label) {
+        // _meta.json 已有 index 条目且有 label，保留用户配置
+        label = oldItem.label
+      } else {
+        // _meta.json 不存在或没有 index 条目，使用插件配置
         if (optsIndex.name === false) {
           label = 'index'
         } else if (typeof optsIndex.name === 'string') {
